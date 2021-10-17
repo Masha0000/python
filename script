@@ -1,0 +1,254 @@
+from pprint import pprint
+import pandas as pd
+import time  
+from datetime import datetime, timedelta
+
+
+import numpy as np
+
+def main():
+    
+    def if_time(x):
+
+        if (x!=0): return 'Простой'
+        else: return 'Деградация'
+
+    def if_mrf(x):
+
+        if str(x)=='nan': return 'Все МРФ'
+        else: 
+            count_symbol = x.count(';') 
+
+            if count_symbol>5: 
+                return 'Все МРФ'
+            elif count_symbol>0: 
+
+                result_x=''
+                result_split_str = x.split(';')
+
+                for number in range(count_symbol+1):
+                    tmp = result_split_str[number]
+                    start = tmp.find("«")
+                    end = tmp.find("»")
+
+                    result_x=result_x + '; ' + str(tmp[0:start]+tmp[start+1:end])          
+
+                position = result_x.find('#')
+                resif_mrf = str(result_x[0:position]+result_x[position+1:])
+
+                return(resif_mrf[2:])
+
+            else:
+                start = x.find("«")
+                end = x.find("»")
+
+            return str(x[0:start]+x[start+1:end])
+
+    def if_rf(x):
+        if str(x)=='nan': return 'Все РФ'
+        else: return str(x)
+
+     #ТПИ арифный план игровой);#111;#VAS (дополнительные опции);#112;#Яндекс диск;#113;#Ростелеком Лицей;#116
+
+    def service(xx):
+        tresult = []
+        IS = ['ТПИ', 'VAS', 'Яндекс диск', 'Мобильный личный кабинет (МЛК)', 'Ростелеком Лицей', 'Ростелеком Книги', 'ЕЛК', 'Сезонные игры', 'Цифровая экосистема', 'ФПЛ', 'Конвергент','Мобильная программа', 'Не заполнено']
+        res2 = []
+        result = []
+        xx = xx.split(';')
+
+        for i in IS:
+            for j in xx:
+                if j.find(i)!=-1:
+                    result.append(i)
+
+        return result
+
+
+    def time(x):
+
+        tmp = ''
+        if x%60<10:
+            tmp = tmp + "0"
+        y = str(x//60)+':'+ tmp + str(x%60)
+
+        return y
+
+    def is_empty(x):
+        
+        if str(x)=='nan':
+            return 'Не заполнено'
+        else: return x
+        
+    def link_task(task):
+        
+        ss = res.loc[res['№ проблемы'] == task].copy()  
+        #print(res['№ проблемы'])
+        
+       # if (res.loc[res['№ проблемы'] == 5389]):
+        #    print(res)
+            
+        #print(ss)
+        return ss
+    
+        
+    name_file = str(input('Введите название файла, который нужно преобразовать без его расширения. '+ '\n' + 'Название по умолчанию "problems" - '))
+    
+    if name_file=='':
+        name_file = 'problems'
+
+    name_file = name_file+ '.xlsx'
+
+    global dat
+    
+    try:  
+        dat = pd.read_excel(name_file) 
+    except FileNotFoundError:  
+        print("\033[31m {}" .format("Указанный файл не найден. Введи корректное название файла.\n "))  
+        main()
+
+    # ------------------------------------
+
+    data = dat[(dat['Система']=='Федеральные системы')]
+
+    #По умолчанию дата = вчерашний день минус неделя
+    start = str(input('Введите дату начала выборки в виде: день.месяц.год - '))+ ' 00:00:00'
+    ending = str(input('Введите дату конца выборки в виде: день.месяц.год - '))+ ' 00:00:00'
+    #start = '15.04.2021 00:00:00'
+    #ending = '22.04.2021 00:00:00'
+  
+   #if start=='':
+    #        start= datetime.strptime(datetime.datetime.now(), '%d.%m.%Y %H:%M:%S') - timedelta(days = 90)
+       
+    start_day_search = datetime.strptime(ending, '%d.%m.%Y %H:%M:%S') - timedelta(days = 200)
+
+    data = data[(data['Дата и время регистрации сбоя']>start_day_search)] # & (data['Дата и время регистрации сбоя']<=datetime.strptime(ending, '%d.%m.%Y %H:%M:%S'))]
+    tmp = []
+
+    for i, y in data[data.columns[22:24]].values:
+        if i!=0: tmp.append(i)
+        else: tmp.append(y)
+
+    data2 = pd.DataFrame()
+
+
+    data2['№ инцидента'] = data['№ инцидента']
+
+    data2['№ проблемы']=data['ИД']
+
+    data2['Влияние на МРФ']=data['МРФ'].apply(if_mrf)
+    data2['РФ']=data['РФ'].apply(if_rf)
+    data2['Приоритет']=data['Степень влияния на бизнес']
+    data2['Недоступность'] = data['Время простоя сервиса, мин'].apply(if_time)
+    data2['Дата и время регистрации сбоя'] = data['Дата и время регистрации сбоя']
+    data2['Дата и время решения сбоя'] = data['Дата и время решения сбоя']
+    data['Недоступность'] = data['Время простоя сервиса, мин'].apply(if_time)
+    data2['ИС'] = data['Сервис'].apply(is_empty)
+
+    data2['ИС'] = data2['ИС'].apply(service)
+    data2['Время недоступности сервиса, мин'] = tmp
+    data2['Время недоступности сервиса, час'] = data2['Время недоступности сервиса, мин'].apply(time)
+    data2['Наименование сбоя'] = data['Наименование сбоя']
+    data2['Источник сбоя'] = data['Источник сбоя']
+    data2['Причина сбоя'] = data['Причина сбоя']
+    data2['Корневая причина проблемы'] = data['Корневая причина проблемы']
+    data2['Компоненты'] = data['Компоненты']
+    data2['Тип сбоя'] = data['Тип сбоя']
+    data2['ЗО устранения'] = data['ЗО устранения']
+    data2['ЗО предотвращения'] = data['ЗО предотвращения']
+    data2['Инцидент связан с проблемой'] = data['Инцидент связан с проблемой'].fillna(0)  
+    
+    
+    columns = data2.columns
+
+    res = pd.DataFrame(columns=columns)  
+    k = 0        
+    
+    # ------------------------------------------------------------
+
+    # дублирование записей для нескольких ИС
+
+    for i, row in data2.iterrows():
+        new_dict = []  
+        many_sys = []
+
+        for j, column in row.items():
+            
+            #print(column, j)
+            new_dict.append(column) 
+            
+        if len(new_dict[8])>1:
+
+            for sys in new_dict[8]:
+
+                many_sys=new_dict
+                many_sys[8]=sys    
+                res.loc[k] = many_sys
+                k=k+1
+
+        else:     
+            new_dict[8]=new_dict[8][0]
+            #print(new_dict)
+
+            res.loc[k] = new_dict
+            k= k+1
+            
+    #--------------------------------------------------------------------------
+    
+    # копирование информации из корневых проблем     
+
+    res = res.copy()
+    result_links = res.copy()   
+    
+    for i, row in res.iterrows():
+  
+        find_link = link_task(row['Инцидент связан с проблемой'])
+        
+        
+        #print(row['Инцидент связан с проблемой'])
+
+        
+        if not find_link.empty:
+            #print("((((((((((((((((((((((основной))))))))))))))))))))))")
+            #print(row['№ проблемы'])
+            #print("-----связка----->>>>>>>>>>>>>>>>")
+
+            find_link = find_link.iloc[0]
+            #print(find_link['№ проблемы'])
+
+            #print('корневая проблема: ' + str(find_link['№ проблемы']) +'\n')
+            #print('текущая проблема:  ' + str(result_links.loc[i,'№ проблемы']))
+            
+            result_links.loc[i,'Источник сбоя'] = find_link['Источник сбоя']           
+            result_links.loc[i,'Причина сбоя'] = find_link['Причина сбоя']
+            result_links.loc[i,'Корневая причина проблемы'] = find_link['Корневая причина проблемы']
+            result_links.loc[i,'Компоненты'] = find_link['Компоненты']
+          
+            result_links.loc[i,'Тип сбоя'] = find_link['Тип сбоя']          
+            result_links.loc[i,'ЗО устранения'] = find_link['ЗО устранения']
+            result_links.loc[i,'ЗО предотвращения'] = find_link['ЗО предотвращения']
+            
+    result_links_filter = result_links[(result_links['Дата и время регистрации сбоя']>datetime.strptime(start, '%d.%m.%Y %H:%M:%S')) & (result_links['Дата и время регистрации сбоя']<=datetime.strptime(ending, '%d.%m.%Y %H:%M:%S'))]
+
+    avail_res_elk = result_links_filter[(result_links_filter['Приоритет']=='Кармическая') & (result_links_filter['Недоступность']=='Простой') & (result_links_filter['ИС']=='ЕЛК')]
+    avail_res_fpl= result_links_filter[(result_links_filter['Приоритет']=='Кармическая') & (result_links_filter['Недоступность']=='Простой') & (result_links_filter['ИС']=='ФПЛ')]
+    avail_res_vas= result_links_filter[(result_links_filter['Приоритет']=='Кармическая') & (result_links_filter['Недоступность']=='Простой') & (result_links_filter['ИС']=='VAS')]
+
+    #writer = pd.ExcelWriter('result_febr.xlsx')  
+    #writer = pd.ExcelWriter(str(input('\n'+'Введите название файла, в который нужно поместить результат, без его расширения.'+'\n'+ 'Если название не будет введено, результат будет помещен в файл "result"'+'\n'))+ '.xlsx')
+     #   writer = 'result.xlsx'
+    path_file= str(input('\n'+'Введите название файла, в который нужно поместить результат, без его расширения.'+'\n'+ 'Если название не будет введено, результат будет помещен в файл "result"'+'\n'))+ '.xlsx'
+    
+    if path_file == '.xlsx':
+        path_file = 'result.xlsx'
+    
+    writer = pd.ExcelWriter(path_file)  
+  
+    avail_res_elk.to_excel(writer, index=False, sheet_name='Доступность ЕЛК')  
+    avail_res_fpl.to_excel(writer, index=False, sheet_name='Доступность ФПЛ')  
+    avail_res_vas.to_excel(writer, index=False, sheet_name='Доступность VAS')  
+    
+    writer.save()
+    print("\033[31m {}" .format('Файл готов'))
+    
+main()    
